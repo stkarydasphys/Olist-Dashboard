@@ -82,3 +82,42 @@ class Order:
         # summing to find the total items per order
         return items.groupby(by = "order_id").agg({"order_item_id":"sum"}) \
             .reset_index().rename(columns = {"order_item_id": "number_of_items"})
+
+
+    def get_num_sellers(self):
+        """
+        Returns a dataframe that contains a per order id total number of sellers included
+        """
+        items = self.data["order_items"].copy()
+
+        # counting unique sellers per order id
+        num_of_sellers = items.groupby(by = ["order_id"]).agg({"seller_id": pd.Series.nunique})
+
+        return num_of_sellers.reset_index().rename( \
+            columns = {"seller_id":"number_of_sellers"})
+
+    def get_revenue_and_freight(self):
+        """
+        Returns the total revenue and freight value related to each order_id
+        """
+        items = self.data["order_items"].copy()
+
+        # summing total revenue for the seller and freight cost
+        rev_freight = items.groupby("order_id").agg({"price":"sum", "freight_value": "sum"})
+        return rev_freight.reset_index().rename(columns = {"price": "revenue"})
+
+    def get_training_data(self,
+                          is_delivered=True,
+                          with_distance_seller_customer=False):
+        """
+        Returns a dataframe with no null values, that contain all the columns above, namely:
+        ['order_id', 'wait_time', 'expected_wait_time', 'delay_vs_expected',
+        'order_status', 'dim_is_five_star', 'dim_is_one_star', 'review_score', 'review_all',
+        'number_of_items', 'number_of_sellers', 'revenue', 'freight_value',
+        'distance_seller_customer'] (distance from seller to customer is still WiP)
+        """
+
+        return self.get_wait_time(is_delivered).merge(self.get_review_score(), on = "order_id") \
+            .merge(self.get_number_items(), on = "order_id") \
+            .merge(self.get_number_sellers(), on = "order_id") \
+            .merge(self.get_revenue_and_freight(), on = "order_id").dropna()
