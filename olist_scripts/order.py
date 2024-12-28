@@ -72,3 +72,13 @@ class Order:
         reviews.loc[reviews["review_all"].isna(), "review_all"] = "no review"
 
         return reviews[["order_id", "dim_is_five_star", "dim_is_one_star", "review_score", "review_all"]]
+
+    def get_num_of_items(self):
+        """
+        Returns a dataframe that contains a per order id total number of items included.
+        """
+        items = self.data["order_items"].copy()
+
+        # summing to find the total items per order
+        return items.groupby(by = "order_id").agg({"order_item_id":"sum"}) \
+            .reset_index().rename(columns = {"order_item_id": "number_of_items"})
