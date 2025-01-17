@@ -2,6 +2,7 @@ import pandas as pd
 import numpy as np
 from olist_scripts.data import Olist
 import datetime
+from geopy.distance import geodesic
 
 class Order:
     """
@@ -106,6 +107,50 @@ class Order:
         rev_freight = items.groupby("order_id").agg({"price":"sum", "freight_value": "sum"})
         return rev_freight.reset_index().rename(columns = {"price": "revenue"})
 
+    def get_distance_seller_customer(self):
+        """
+        Returns a dataframe with order_id and the distance (in km) from the
+        seller to the customer
+        """
+        # creating a dataframe that contains what we need
+        distance_df = \
+        self.data["orders"].merge(self.data["order_items"], how = "left", on = "order_id") \
+        .merge(self.data["sellers"], how = "left", on = "seller_id") \
+        .merge(self.data["customers"], how = "left", on = "customer_id") \
+        .merge(self.data["order_reviews"], how = "left", on = "order_id")
+
+        cols = ["order_purchase_timestamp", "order_approved_at", 'order_delivered_carrier_date',
+       'order_delivered_customer_date', 'order_estimated_delivery_date', 'product_id', 'shipping_limit_date',
+       "seller_city", "customer_city", "seller_state", "customer_state", "customer_unique_id"]
+
+        distance_df.drop(columns = cols, inplace = True)
+        distance_df = distance_df\
+            .dropna(subset = ["seller_zip_code_prefix", "customer_zip_code_prefix"])
+
+        # seller location
+        distance_df = pd.merge(distance_df, self.data["geolocation"], left_on='seller_zip_code_prefix', \
+            right_on='geolocation_zip_code_prefix', how='inner')
+
+        # renaming columns
+        distance_df = distance_df.rename(columns={'geolocation_lat': 'seller_lat','geolocation_lng': 'seller_lng'})
+
+        # customer location
+        distance_df = pd.merge(distance_df, self.data["geolocation"], left_on='customer_zip_code_prefix', \
+            right_on='geolocation_zip_code_prefix', how='left')
+
+        # renaming
+        distance_df = distance_df.rename(columns={'geolocation_lat': 'customer_lat', 'geolocation_lng': 'customer_lng'})
+
+        # dropping nulls
+        distance_df = distance_df.dropna()
+
+        # calculating the distance
+        distance_df['distance_km'] = distance_df.apply(
+            lambda row: geodesic((row['seller_lat'], row['seller_lng']), \
+                (row['customer_lat'], row['customer_lng'])).kilometers, axis=1)
+
+        return distance_df[["order_id", "distance_km"]]
+
     def get_training_data(self,
                           is_delivered=True,
                           with_distance_seller_customer=False):
@@ -114,10 +159,17 @@ class Order:
         ['order_id', 'wait_time', 'expected_wait_time', 'delay_vs_expected',
         'order_status', 'dim_is_five_star', 'dim_is_one_star', 'review_score', 'review_all',
         'number_of_items', 'number_of_sellers', 'revenue', 'freight_value',
-        'distance_seller_customer'] (distance from seller to customer is still WiP)
+        'distance_seller_customer']
         """
 
-        return self.get_wait_time(is_delivered).merge(self.get_review_score(), on = "order_id") \
-            .merge(self.get_number_items(), on = "order_id") \
-            .merge(self.get_number_sellers(), on = "order_id") \
+        if with_distance_seller_customer:
+            return self.get_timedeltas(is_delivered).merge(self.get_reviews(), on = "order_id") \
+            .merge(self.get_num_of_items(), on = "order_id") \
+            .merge(self.get_num_sellers(), on = "order_id") \
+            .merge(self.get_revenue_and_freight(), on = "order_id") \
+            .merge(self.get_distance_seller_customer()).dropna()
+
+        return self.get_timedeltas(is_delivered).merge(self.get_reviews(), on = "order_id") \
+            .merge(self.get_num_of_items(), on = "order_id") \
+            .merge(self.get_num_sellers(), on = "order_id") \
             .merge(self.get_revenue_and_freight(), on = "order_id").dropna()
