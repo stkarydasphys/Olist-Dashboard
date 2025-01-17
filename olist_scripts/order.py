@@ -109,8 +109,8 @@ class Order:
 
     def get_distance_seller_customer(self):
         """
-        Returns a dataframe with order_id and the distance (in km) from the
-        seller to the customer
+        Returns a dataframe with order_id and the (mean) distance (in km) from the
+        seller(s) to the customer.
         """
         # creating a dataframe that contains what we need
         distance_df = \
@@ -149,7 +149,9 @@ class Order:
             lambda row: geodesic((row['seller_lat'], row['seller_lng']), \
                 (row['customer_lat'], row['customer_lng'])).kilometers, axis=1)
 
-        return distance_df[["order_id", "distance_km"]]
+        distance_df = distance_df.groupby(by = "order_id").agg({"distance_km": "mean"}).reset_index()
+
+        return distance_df
 
     def get_training_data(self,
                           is_delivered=True,
