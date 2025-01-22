@@ -25,7 +25,7 @@ class Olist:
         file_names = [name for name in os.listdir(csv_path) if name[-4:] == ".csv"]
         key_names = [name.replace(".csv", "_df") for name in file_names]
 
-        data = {key_name: pd.read_csv(os.path.join(csv_path, file))
-        for (key_name, file) in zip (key_names, file_names)}
+        data = {key_name: pd.read_csv(os.path.join(csv_path, file)) \
+                for (key_name, file) in zip (key_names, file_names)}
 
         return data

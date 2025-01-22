@@ -1,3 +1,8 @@
+"""
+This is a script engineers and retrieves features on a per order basis for my Olist
+project.
+"""
+
 import pandas as pd
 import numpy as np
 from olist_scripts.data import Olist
@@ -11,7 +16,7 @@ class Order:
     """
 
     def __init__(self):
-        self.data = Olist.retrieve_data()
+        self.data = Olist().retrieve_data()
 
     def get_timedeltas(self, is_delivered = True):
         """
@@ -23,7 +28,7 @@ class Order:
         order to be delivered (expected_wait_time) and how much time the
         prediction was off (delay_vs_expected, 0 if it got there early!)
         """
-        orders = self.data["orders"].copy()
+        orders = self.data["orders_df"].copy()
 
         if is_delivered:
             orders = orders[orders["order_status"] == "delivered"]
@@ -60,7 +65,7 @@ class Order:
         Also returns the actual review score (review_score) and the review comment (review_all).
         If no review was left, the corresponding column contains "no review"
         """
-        reviews = self.data["order_reviews"].copy()
+        reviews = self.data["order_reviews_df"].copy()
 
         # creating 0 or 1 columns if review score is 1 or 5
         reviews.loc[:,"dim_is_five_star"] = reviews["review_score"].apply(lambda x: 1 if x == 5 else 0)
@@ -78,7 +83,7 @@ class Order:
         """
         Returns a dataframe that contains a per order id total number of items included.
         """
-        items = self.data["order_items"].copy()
+        items = self.data["order_items_df"].copy()
 
         # summing to find the total items per order
         return items.groupby(by = "order_id").agg({"order_item_id":"sum"}) \
@@ -89,7 +94,7 @@ class Order:
         """
         Returns a dataframe that contains a per order id total number of sellers included
         """
-        items = self.data["order_items"].copy()
+        items = self.data["order_items_df"].copy()
 
         # counting unique sellers per order id
         num_of_sellers = items.groupby(by = ["order_id"]).agg({"seller_id": pd.Series.nunique})
@@ -101,7 +106,7 @@ class Order:
         """
         Returns the total revenue and freight value related to each order_id
         """
-        items = self.data["order_items"].copy()
+        items = self.data["order_items_df"].copy()
 
         # summing total revenue for the seller and freight cost
         rev_freight = items.groupby("order_id").agg({"price":"sum", "freight_value": "sum"})
@@ -114,10 +119,10 @@ class Order:
         """
         # creating a dataframe that contains what we need
         distance_df = \
-        self.data["orders"].merge(self.data["order_items"], how = "left", on = "order_id") \
-        .merge(self.data["sellers"], how = "left", on = "seller_id") \
-        .merge(self.data["customers"], how = "left", on = "customer_id") \
-        .merge(self.data["order_reviews"], how = "left", on = "order_id")
+        self.data["orders_df"].merge(self.data["order_items_df"], how = "left", on = "order_id") \
+        .merge(self.data["sellers_df"], how = "left", on = "seller_id") \
+        .merge(self.data["customers_df"], how = "left", on = "customer_id") \
+        .merge(self.data["order_reviews_df"], how = "left", on = "order_id")
 
         cols = ["order_purchase_timestamp", "order_approved_at", 'order_delivered_carrier_date',
        'order_delivered_customer_date', 'order_estimated_delivery_date', 'product_id', 'shipping_limit_date',
@@ -128,14 +133,14 @@ class Order:
             .dropna(subset = ["seller_zip_code_prefix", "customer_zip_code_prefix"])
 
         # seller location
-        distance_df = pd.merge(distance_df, self.data["geolocation"], left_on='seller_zip_code_prefix', \
+        distance_df = pd.merge(distance_df, self.data["geolocation_df"], left_on='seller_zip_code_prefix', \
             right_on='geolocation_zip_code_prefix', how='inner')
 
         # renaming columns
         distance_df = distance_df.rename(columns={'geolocation_lat': 'seller_lat','geolocation_lng': 'seller_lng'})
 
         # customer location
-        distance_df = pd.merge(distance_df, self.data["geolocation"], left_on='customer_zip_code_prefix', \
+        distance_df = pd.merge(distance_df, self.data["geolocation_df"], left_on='customer_zip_code_prefix', \
             right_on='geolocation_zip_code_prefix', how='left')
 
         # renaming
