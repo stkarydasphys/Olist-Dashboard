@@ -7,7 +7,7 @@ import pandas as pd
 import numpy as np
 from olist_scripts.data import Olist
 import datetime
-from geopy.distance import geodesic
+from haversine import haversine_vector
 
 class Order:
     """
@@ -117,46 +117,37 @@ class Order:
         Returns a dataframe with order_id and the (mean) distance (in km) from the
         seller(s) to the customer.
         """
-        # creating a dataframe that contains what we need
-        distance_df = \
-        self.data["orders_df"].merge(self.data["order_items_df"], how = "left", on = "order_id") \
-        .merge(self.data["sellers_df"], how = "left", on = "seller_id") \
-        .merge(self.data["customers_df"], how = "left", on = "customer_id") \
-        .merge(self.data["order_reviews_df"], how = "left", on = "order_id")
+        # picking columns to create new df
+        orders = self.data["orders_df"][["order_id", "customer_id"]]
+        order_items = self.data["order_items_df"][["order_id", "seller_id"]]
+        sellers = self.data["sellers_df"][["seller_id", "seller_zip_code_prefix"]]
+        customers = self.data["customers_df"][["customer_id", "customer_zip_code_prefix"]]
+        geolocation = self.data["geolocation_df"][["geolocation_zip_code_prefix", "geolocation_lat", "geolocation_lng"]]
 
-        cols = ["order_purchase_timestamp", "order_approved_at", 'order_delivered_carrier_date',
-       'order_delivered_customer_date', 'order_estimated_delivery_date', 'product_id', 'shipping_limit_date',
-       "seller_city", "customer_city", "seller_state", "customer_state", "customer_unique_id"]
+        distance_df = orders.merge(order_items, on="order_id", how="left") \
+                            .merge(sellers, on="seller_id", how="left") \
+                            .merge(customers, on="customer_id", how="left")
 
-        distance_df.drop(columns = cols, inplace = True)
-        distance_df = distance_df\
-            .dropna(subset = ["seller_zip_code_prefix", "customer_zip_code_prefix"])
+        # averaging lat and long for each zip code and merging with main df
+        sellers_geo = geolocation.rename(columns={'geolocation_lat': 'seller_lat', \
+            'geolocation_lng': 'seller_lng'}).groupby(by = "geolocation_zip_code_prefix").mean()
+        customers_geo = geolocation.rename(columns={'geolocation_lat': 'customer_lat', \
+            'geolocation_lng': 'customer_lng'}).groupby(by = "geolocation_zip_code_prefix").mean()
 
-        # seller location
-        distance_df = pd.merge(distance_df, self.data["geolocation_df"], left_on='seller_zip_code_prefix', \
-            right_on='geolocation_zip_code_prefix', how='inner')
+        distance_df = distance_df.merge(sellers_geo, left_on="seller_zip_code_prefix", \
+            right_on="geolocation_zip_code_prefix", how="inner").merge(customers_geo, \
+                left_on="customer_zip_code_prefix", right_on="geolocation_zip_code_prefix", how="left")
 
-        # renaming columns
-        distance_df = distance_df.rename(columns={'geolocation_lat': 'seller_lat','geolocation_lng': 'seller_lng'})
+        distance_df = distance_df.dropna(subset=["seller_lat", "seller_lng", "customer_lat", "customer_lng"])
 
-        # customer location
-        distance_df = pd.merge(distance_df, self.data["geolocation_df"], left_on='customer_zip_code_prefix', \
-            right_on='geolocation_zip_code_prefix', how='left')
+        # turning to numpy form to feed into haversine function
+        seller_coords = distance_df[["seller_lat", "seller_lng"]].to_numpy()
+        customer_coords = distance_df[["customer_lat", "customer_lng"]].to_numpy()
 
-        # renaming
-        distance_df = distance_df.rename(columns={'geolocation_lat': 'customer_lat', 'geolocation_lng': 'customer_lng'})
+        distance_df['distance_km'] = haversine_vector(seller_coords, customer_coords, unit='km')
 
-        # dropping nulls
-        distance_df = distance_df.dropna()
+        return distance_df.groupby(by = "order_id", as_index=False)["distance_km"].mean()
 
-        # calculating the distance
-        distance_df['distance_km'] = distance_df.apply(
-            lambda row: geodesic((row['seller_lat'], row['seller_lng']), \
-                (row['customer_lat'], row['customer_lng'])).kilometers, axis=1)
-
-        distance_df = distance_df.groupby(by = "order_id").agg({"distance_km": "mean"}).reset_index()
-
-        return distance_df
 
     def get_training_data(self,
                           is_delivered=True,
