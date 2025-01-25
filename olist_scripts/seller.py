@@ -121,3 +121,65 @@ class Seller:
         tmp["months_on_olist"] = round((tmp.loc[:,"last_order"] - tmp.loc[:,"first_order"])/(one_day_delta*30)+1)
 
         return tmp
+
+    def get_quantitative_features(self):
+        """
+        Returns a df that contains the total amount of orders that the seller participated in, the
+        total amount of items sold by a seller and the items sold per order of the seller. Also
+        returns the total revenue and the revenue per order for the seller.
+        """
+
+        orders = self.data["orders_df"]
+        items = self.data["order_items_df"]
+        sellers = self.data["sellers_df"]
+
+        tmp = orders.merge(items, on = "order_id", how = "left").merge(sellers, on = "seller_id", how = "left")
+
+        tmp = tmp.groupby(by = "seller_id", as_index = False) \
+            .agg({"order_id": "nunique", "order_item_id": "sum", "price": "sum"})
+
+        tmp.columns = ["seller_id", "order_count", "total_items_sold", "revenue"]
+
+        tmp["items_per_order"] = tmp["total_items_sold"]/tmp["order_count"]
+        tmp["revenue_per_order"] = tmp["revenue"]/tmp["order_count"]
+
+        return tmp
+
+    def get_review_score(self):
+        """
+        Returns a dataframe that has the average review per seller, and the share of 1-star and 5-star
+        reviews they had.
+        """
+
+        orders = self.data["orders_df"]
+        items = self.data["order_items_df"]
+        sellers = self.data["sellers_df"]
+        reviews = self.data["order_reviews_df"]
+
+
+        tmp = orders.merge(reviews, on = "order_id", how = "left").merge(items, on = "order_id", how = "left") \
+           .merge(sellers, on = "seller_id", how = "left").drop_duplicates()
+
+        tmp["one_star"] = (tmp["review_score"] == 1).astype(int)
+        tmp["five_star"] = (tmp["review_score"] == 5).astype(int)
+
+        df = tmp.groupby(by = "seller_id", as_index = False).agg({"one_star": "sum", "five_star": "sum", \
+            "review_score": "mean", "order_id": "count"})
+
+        df.rename(columns = {"order_id": "order_count"}, inplace = True)
+
+        df["share_of_one_stars"] = df["one_star"]/df["order_count"]
+        df["share_of_five_stars"] = df["five_star"]/df["order_count"]
+
+        return df
+
+    def get_training_data(self):
+        """
+        Returns a df that has all the features related to sellers, done by the
+        methods above.
+        """
+
+        return self.get_active_dates().merge(self.get_quantitative_features(), on = "seller_id", how = "left") \
+            .merge(self.get_review_score(), on = "seller_id", how = "left") \
+            .merge(self.get_seller_features(), on  = "seller_id", how = "left") \
+            .merge(self.get_seller_timedeltas(), on = "seller_id", how = "left")
