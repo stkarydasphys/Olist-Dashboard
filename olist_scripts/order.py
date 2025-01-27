@@ -67,6 +67,8 @@ class Order:
         """
         reviews = self.data["order_reviews_df"].copy()
 
+        reviews = reviews.drop_duplicates(subset = "order_id")
+
         # creating 0 or 1 columns if review score is 1 or 5
         reviews.loc[:,"dim_is_five_star"] = reviews["review_score"].apply(lambda x: 1 if x == 5 else 0)
         reviews.loc[:,"dim_is_one_star"] = reviews["review_score"].apply(lambda x: 1 if x == 1 else 0)
