@@ -34,14 +34,15 @@ pip install -r requirements.txt
 │   ├── Clean EDA.ipynb
 │   ├── Creating pandas dfs from sqlite file.ipynb
 ├── olist_scripts/
-|   ├── data.py
-|   ├── order.py
-|   ├── product.py
-|   ├── review.py
-|   ├── seller.py
+│   ├── data.py
+│   ├── order.py
+│   ├── product.py
+│   ├── review.py
+│   ├── seller.py
 ├── requirements.txt
 ├── README.md
 ├── .gitignore
+
 
 ## Usage
 
