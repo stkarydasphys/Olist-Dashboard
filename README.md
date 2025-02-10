@@ -29,7 +29,7 @@ pip install -r requirements.txt
 ```
 
 ## Project Structure
-
+```
 ├── EDA_notebooks/
 │   ├── Clean EDA.ipynb
 │   ├── Creating pandas dfs from sqlite file.ipynb
@@ -42,6 +42,7 @@ pip install -r requirements.txt
 ├── requirements.txt
 ├── README.md
 ├── .gitignore
+```
 
 
 ## Usage
