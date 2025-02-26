@@ -155,10 +155,10 @@ class Seller:
         items = self.data["order_items_df"]
         sellers = self.data["sellers_df"]
         reviews = self.data["order_reviews_df"]
-
+        temp = sellers.drop(["Unnamed: 0"], axis = 1)
 
         tmp = orders.merge(reviews, on = "order_id", how = "left").merge(items, on = "order_id", how = "left") \
-           .merge(sellers, on = "seller_id", how = "left").drop_duplicates()
+           .merge(temp, on = "seller_id", how = "left").drop_duplicates()
 
         tmp["one_star"] = (tmp["review_score"] == 1).astype(int)
         tmp["five_star"] = (tmp["review_score"] == 5).astype(int)
